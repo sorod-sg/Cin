@@ -1,10 +1,12 @@
 package gee
 
+import "strings"
+
 type node struct {
 	pattern  string //待匹配路由
-	part     string
+	part     string //路由中的一部分
 	chlidren []*node
-	isWild   bool //是否为动态路由
+	isWild   bool //是否精准匹配
 } //前缀树路由的节点
 
 func (n *node) matchChlid(part string) *node {
@@ -24,7 +26,7 @@ func (n *node) matchChlidren(part string) []*node {
 		}
 	}
 	return nodes
-}
+} //所有匹配成功的节点
 
 func (n *node) insert(pattern string, parts []string, height int) {
 	if len(parts) == height {
@@ -38,3 +40,23 @@ func (n *node) insert(pattern string, parts []string, height int) {
 	}
 	child.insert(pattern, parts, height+1)
 } //插入节点
+
+func (n *node) search(parts []string, height int) *node {
+	if len(parts) == height || strings.HasPrefix(n.part, "*") {
+		if n.pattern == "" {
+			return nil
+		}
+		return n
+	}
+
+	part := parts[height]
+	chlidren := n.matchChlidren(part)
+
+	for _, child := range chlidren {
+		rusult := child.search(parts, height+1)
+		if rusult != nil {
+			return rusult
+		}
+	}
+	return nil
+}
