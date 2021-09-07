@@ -13,6 +13,7 @@ type context struct {
 	Req        *http.Request
 	Path       string
 	Method     string
+	Params     map[string]string //解析后的路径
 	StatusCode int
 } //上下文
 
@@ -63,4 +64,9 @@ func (c *context) HTML(code int, html string) {
 	c.SetHeader("content-Type", "text/html")
 	c.Status(code)
 	c.Writer.Write([]byte(html))
+}
+
+func (c *context) Param(key string) string {
+	value, _ := c.Params[key]
+	return value
 }

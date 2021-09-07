@@ -1,14 +1,13 @@
 package gee
 
 import (
-	"log"
 	"net/http"
 	"strings"
 )
 
 type router struct {
-	roots    map[string]*node //路由树的根节点
-	handlers map[string]HandlerFunc
+	roots    map[string]*node       //路由树的根节点
+	handlers map[string]HandlerFunc //路由的处理handler
 }
 
 func newRouter() *router {
@@ -18,6 +17,7 @@ func newRouter() *router {
 	}
 }
 
+//匹配*之前的part,将*之前的part切片
 func parsePattern(pattern string) []string {
 	vs := strings.Split(pattern, "/")
 	parts := make([]string, 0)
@@ -30,13 +30,13 @@ func parsePattern(pattern string) []string {
 		}
 	}
 	return parts
-} //匹配*之前的url
+}
 
 func (r *router) addRoute(method string, pattern string, handler HandlerFunc) {
 	parts := parsePattern(pattern)
 	key := method + "-" + pattern
 	if _, ok := r.roots[method]; !ok {
-		r.roots[method] = &node{}
+		r.roots[method] = &node{} //若root节点不存在,创建新的root节点
 	}
 	r.roots[method].insert(pattern, parts, 0)
 	r.handlers[key] = handler
@@ -53,24 +53,26 @@ func (r *router) getRoute(method string, path string) (*node, map[string]string)
 	n := root.search(searchParts, 0)
 
 	if n != nil {
-		parts := parsePattern(n.pattern)
+		parts := parsePattern(n.path)
 		for index, part := range parts {
 			if part[0] == ':' {
-				params[part[1:]] = searchParts[index]
+				params[part[1:]] = searchParts[index] //将通配符":"解析为对应路径
 			}
 			if part[0] == '*' && len(part) > 1 {
-				params[part[1:]] = strings.Join(searchParts[index:], "/")
+				params[part[1:]] = strings.Join(searchParts[index:], "/") //将通配符"*"解析为对应路径
 				break
 			}
 		}
 
 	}
-	return n, params
+	return n, params //返回通配符的匹配
 }
 func (r *router) handle(c *context) {
-	key := c.Method + "-" + c.Path
-	if handler, OK := r.handlers[key]; OK {
-		handler(c)
+	n, params := r.getRoute(c.Method, c.Path)
+	if n != nil {
+		c.Params = params
+		key := c.Method + "-" + n.path
+		r.handlers[key](c)
 	} else {
 		c.String(http.StatusNotFound, "404 NOT FOUND :%s\n", c.Path)
 	}
