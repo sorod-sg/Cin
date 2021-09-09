@@ -8,47 +8,50 @@ import (
 
 type H map[string]interface{}
 
-type context struct {
+type Context struct {
 	Writer     http.ResponseWriter
 	Req        *http.Request
 	Path       string
 	Method     string
 	Params     map[string]string //解析后的路径
 	StatusCode int
-} //上下文
+	handlers   []HandlerFunc
+	index      int
+} //存储所有请求响应信息
 
 func newContext(w http.ResponseWriter, req *http.Request) *context {
-	return &context{
+	return &Context{
 		Writer: w,
 		Req:    req,
 		Path:   req.URL.Path,
 		Method: req.Method,
+		index:  -1, //记录运行到第几个中间件
 	}
 }
 
-func (c *context) PostForm(key string) string {
+func (c *Context) PostForm(key string) string {
 	return c.Req.FormValue(key)
 }
 
-func (c *context) Query(key string) string {
+func (c *Context) Query(key string) string {
 	return c.Req.URL.Query().Get(key)
 }
 
-func (c *context) Status(code int) {
+func (c *Context) Status(code int) {
 	c.StatusCode = code
 	c.Writer.WriteHeader(code)
 }
 
-func (c *context) SetHeader(key string, value string) {
+func (c *Context) SetHeader(key string, value string) {
 	c.Writer.Header().Set(key, value)
 }
 
-func (c *context) String(code int, format string, values ...interface{}) {
+func (c *Context) String(code int, format string, values ...interface{}) {
 	c.SetHeader("Content-Type", "text/plain")
 	c.Status(code)
 	c.Writer.Write([]byte(fmt.Sprintf(format, values...)))
 }
-func (c *context) JSON(code int, obj interface{}) {
+func (c *Context) JSON(code int, obj interface{}) {
 	c.SetHeader("Content-Type", "application/json")
 	c.Status(code)
 	encoder := json.NewEncoder(c.Writer)
@@ -56,17 +59,25 @@ func (c *context) JSON(code int, obj interface{}) {
 		http.Error(c.Writer, err.Error(), 500)
 	}
 }
-func (c *context) Data(code int, data []byte) {
+func (c *Context) Data(code int, data []byte) {
 	c.Status(code)
 	c.Writer.Write(data)
 }
-func (c *context) HTML(code int, html string) {
+func (c *Context) HTML(code int, html string) {
 	c.SetHeader("content-Type", "text/html")
 	c.Status(code)
 	c.Writer.Write([]byte(html))
 }
 
-func (c *context) Param(key string) string {
+func (c *Context) Param(key string) string {
 	value, _ := c.Params[key]
 	return value
+}
+
+func (c *Context) Next() {
+	c.index++
+	s := len(c.handlers)
+	for ; c.index < s; c.index++ {
+		c.handlers[c.index](c)
+	} //递归调用,保证中间件中Next方法后的部分在Handler之后运行
 }

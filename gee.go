@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-type HandlerFunc func(*context) //归类handler
+type HandlerFunc func(*Context)
 
 type Engine struct {
 	*RouterGroup
@@ -39,7 +39,6 @@ func (group *RouterGroup) GET(pattern string, handler HandlerFunc) {
 }
 
 func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
-	group.addRoute("POST", pattern, handler)
 }
 
 func (engine *Engine) Run(addr string) (err error) {
@@ -60,4 +59,8 @@ func (group *RouterGroup) Group(prefix string) *RouterGroup {
 	}
 	engine.group = append(engine.group, newGroup)
 	return newGroup
+}
+
+func (group *RouterGroup) Use(middlewares ...HandlerFunc) {
+	group.middewares = append(group.middewares, middlewares...)
 }
